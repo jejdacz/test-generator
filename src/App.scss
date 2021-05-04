@@ -1,0 +1,109 @@
+$background-color: #c6daf1;
+$primary-color: #26303a;
+
+body {
+  background-color: $background-color;
+}
+
+.app {
+  margin: 0 auto;
+  min-height: 100vh;
+  max-width: 45rem;
+  padding: 1.5rem;
+  font-size: 14px;
+  text-align: left;
+  color: $primary-color;
+}
+
+.button {
+  border-radius: 5px;
+  padding: 0.5rem;
+  background-color: lighten($background-color, 7);
+}
+
+.question-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+
+  &.going-next {
+    animation: fade 0.6s;
+  }
+}
+
+@keyframes fade {
+  100% {
+    opacity: 0;
+  }
+}
+
+.status-bar {
+  background-color: transparentize($background-color, 0.75);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+
+  .button {
+    padding: 0.5rem;
+  }
+
+  .question-counter {
+    margin-left: 0.5rem;
+    border-radius: 5px;
+    padding: 0.5rem;
+    background-color: lighten($background-color, 7);
+  }
+}
+
+.controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+
+  .button {
+    font-size: 18px;
+    padding: 1rem;
+  }
+
+  .button + .button {
+    margin-left: 1.5rem;
+  }
+}
+
+.question {
+  margin-top: 10vh;
+  margin-bottom: 1.5rem;
+  font-weight: bold;
+}
+
+.answer {
+  margin-bottom: 1.5rem;
+  word-spacing: 0.4em;
+  border-radius: 5px;
+  padding: 0.85rem;
+  background-color: lighten($background-color, 7);
+
+  &.selected {
+    &.invalid {
+      animation: wrong 0.2s forwards;
+    }
+    &.valid {
+      animation: right 0.2s forwards;
+    }
+  }
+}
+
+@keyframes wrong {
+  100% {
+    background-color: hotpink;
+  }
+}
+
+@keyframes right {
+  100% {
+    background-color: greenyellow;
+  }
+}
