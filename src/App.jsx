@@ -7,7 +7,7 @@ import classNames from 'classnames';
 const Answer = ({ text, onClick, selected, valid }) => {
   return (
     <div
-      className={classnames('answer', {
+      className={classnames('answer', 'button', {
         selected,
         valid,
         invalid: !valid
@@ -20,19 +20,31 @@ const Answer = ({ text, onClick, selected, valid }) => {
 
 const Question = ({ text }) => <div className='question'>{text}</div>;
 
-const pickQuestion = (questions, stats) => {
-  const index = Math.floor(Math.random() * questions.length);
-  return questions[index];
-};
+//exam.questions = exam.questions.splice(0, 3);
+
+const initAvailableQuestionsIndexes = exam.questions.map((e, i) => i);
 
 const initialState = {
   status: 'init',
-  currentQuestion: null,
   currentQuestionIndex: null,
   selectedAnswer: null,
   showRight: false,
   showControls: false,
-  stats: { answers: [], rightAnswers: 0, totalAnswers: 0, removedQuestions: 0 }
+  learnedLimit: 5,
+  availableQuestionsIndexes: initAvailableQuestionsIndexes,
+  stats: {
+    answers: new Array(exam.questions.length).fill(0),
+    rightAnswers: 0,
+    totalAnswers: 0,
+    removedQuestions: 0
+  }
+};
+
+const loadState = () =>
+  localStorage.state ? JSON.parse(localStorage.state) : null;
+const saveState = state => {
+  localStorage.state = JSON.stringify(state);
+  return state;
 };
 
 const App = () => {
@@ -40,32 +52,65 @@ const App = () => {
 
   useEffect(() => {
     // load local stats
-    //const state = localStorage.getItem('state');
+    const state = loadState() ?? { status: 'loaded' };
     console.log('loading state from localstorage');
-    setState(s => ({ ...s, status: 'loaded' }));
+    setState(s => ({ ...s, ...state }));
   }, []);
 
   useEffect(() => {
     if (state.status === 'loaded') {
       setState(s => ({
         ...s,
-        currentQuestion: pickQuestion(exam.questions),
+        currentQuestionIndex: pickQuestionIndex(),
         status: 'ready'
       }));
-    } else if (state.status === 'wrong') {
+    } else if (state.status === 'ready') {
+      saveState(state);
+    } else if (state.status === 'right') {
       // calculate stats here
-      // if {state}
+
+      setState(s => {
+        const answers = s.stats.answers.slice();
+        answers[s.currentQuestionIndex]++;
+
+        return {
+          ...s,
+          availableQuestionsIndexes:
+            answers[s.currentQuestionIndex] >= state.learnedLimit
+              ? s.availableQuestionsIndexes.filter(
+                  e => e !== s.currentQuestionIndex
+                )
+              : s.availableQuestionsIndexes,
+          stats: {
+            ...s.stats,
+            answers,
+            rightAnswers: s.stats.rightAnswers + 1,
+            totalAnswers: s.stats.totalAnswers + 1
+          }
+        };
+      });
       setTimeout(
         () => setState(s => ({ ...s, status: 'showRight', showRight: true })),
         500
       );
-    } else if (state.status === 'showRight' || state.status === 'right') {
+    } else if (state.status === 'wrong') {
       // calculate stats here
-      // if {state}
+      setState(s => ({
+        ...s,
+        stats: { ...s.stats, totalAnswers: s.stats.totalAnswers + 1 }
+      }));
       setTimeout(
-        () => setState(s => ({ ...s, status: 'waitingForClick' })),
+        () => setState(s => ({ ...s, status: 'showRight', showRight: true })),
         500
       );
+    } else if (state.status === 'showRight') {
+      // handle victory
+      state.availableQuestionsIndexes.length > 0
+        ? setTimeout(
+            () => setState(s => ({ ...s, status: 'waitingForClick' })),
+            500
+          )
+        : setState(s => ({ ...s, status: 'victory' }));
     } else if (state.status === 'goingNext') {
       setTimeout(
         () =>
@@ -73,7 +118,7 @@ const App = () => {
             ...s,
             showRight: false,
             selectedAnswer: null,
-            currentQuestion: pickQuestion(exam.questions),
+            currentQuestionIndex: pickQuestionIndex(),
             status: 'ready'
           })),
         500
@@ -81,9 +126,14 @@ const App = () => {
     }
   }, [state.status]);
 
+  const pickQuestionIndex = () =>
+    state.availableQuestionsIndexes[
+      Math.floor(Math.random() * state.availableQuestionsIndexes.length)
+    ];
+
   const handleAnswer = i => () => {
     if (state.status === 'ready')
-      state.currentQuestion.answers[i].valid
+      exam.questions[state.currentQuestionIndex].answers[i].valid
         ? setState(s => ({ ...s, selectedAnswer: i, status: 'right' }))
         : setState(s => ({ ...s, selectedAnswer: i, status: 'wrong' }));
   };
@@ -95,9 +145,9 @@ const App = () => {
   };
 
   const handleShowAllClick = () => {
-    //if (state.status === 'waitingForClick') {
-    setState(s => ({ ...s, showRight: true, status: 'showAll' }));
-    //}
+    state.status !== 'showAll'
+      ? setState(s => ({ ...s, showRight: true, status: 'showAll' }))
+      : setState(s => ({ ...s, showRight: false, status: 'ready' }));
   };
 
   const renderQuestion = () =>
@@ -111,8 +161,8 @@ const App = () => {
         className={classNames('question-wrapper', {
           'going-next': state.status === 'goingNext'
         })}>
-        <Question text={state.currentQuestion.question} />
-        {state.currentQuestion.answers.map((e, i) => (
+        <Question text={exam.questions[state.currentQuestionIndex].question} />
+        {exam.questions[state.currentQuestionIndex].answers.map((e, i) => (
           <Answer
             key={i}
             text={e.text}
@@ -129,7 +179,7 @@ const App = () => {
       <>
         {exam.questions.map((q, iq) => (
           <div key={iq} className='question-wrapper'>
-            <Question key={iq} text={q.question} />
+            <Question key={iq} text={`${q.id}. ${q.question}`} />
             {q.answers.map((e, i) => (
               <Answer
                 key={`${iq}-${i}`}
@@ -150,12 +200,32 @@ const App = () => {
       })}
       onClick={handleAppClick}>
       <div className='status-bar'>
-        <div className='button' onClick={handleShowAllClick}>
-          show all
+        <div className='wrapper'>
+          <div className='button answers-right'>
+            {`r: ${state.stats.rightAnswers}`}
+          </div>
+          <div className='button answers-total'>
+            {`tot: ${state.stats.totalAnswers}`}
+          </div>
+          <div className='button answers-ratio'>
+            {`r/t: ${(
+              state.stats.rightAnswers / state.stats.totalAnswers
+            ).toFixed(2)}`}
+          </div>
+          <div className='button answers-remaining'>
+            {`rem: ${state.availableQuestionsIndexes.length}`}
+          </div>
+          <div className='button primary' onClick={handleShowAllClick}>
+            {state.status === 'showAll' ? 'practice' : 'show all'}
+          </div>
         </div>
-        <div className='question-counter'>26/30</div>
       </div>
       {renderQuestion()}
+      {state.status === 'victory' && (
+        <div className='victory-wrapper'>
+          <h1 className='sign'>VICTORY!</h1>
+        </div>
+      )}
       {state.showControls && (
         <div className='controls'>
           <div className='button'>&lt;</div>
